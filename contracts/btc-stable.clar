@@ -164,3 +164,62 @@
         (ok true)
     ))
 )
+
+(define-public (withdraw-collateral (amount uint))
+    (let (
+        (vault (unwrap! (map-get? vaults tx-sender) err-low-balance))
+        (current-collateral (get collateral vault))
+        (current-debt (get debt vault))
+        (new-collateral (- current-collateral amount))
+        (collateral-value (* new-collateral (var-get last-price)))
+    )
+    (begin
+        (asserts! (var-get initialized) err-not-initialized)
+        (asserts! (not (var-get emergency-shutdown)) err-emergency-shutdown)
+        (asserts! (var-get price-valid) err-invalid-price)
+        (asserts! (>= current-collateral amount) err-low-balance)
+        (asserts! (or
+            (is-eq current-debt u0)
+            (>= (* collateral-value u100)
+                (* current-debt (var-get minimum-collateral-ratio))))
+            err-below-mcr)
+        (try! (as-contract (stx-transfer? amount (as-contract tx-sender) tx-sender)))
+        (map-set vaults tx-sender
+            (merge vault {
+                collateral: new-collateral
+            })
+        )
+        (ok true)
+    ))
+)
+
+;; Public Functions - Liquidation
+
+(define-public (liquidate (vault-owner principal))
+    (let (
+        (vault (unwrap! (map-get? vaults vault-owner) err-low-balance))
+        (collateral (get collateral vault))
+        (debt (get debt vault))
+        (collateral-value (* collateral (var-get last-price)))
+    )
+    (begin
+        (asserts! (var-get initialized) err-not-initialized)
+        (asserts! (var-get price-valid) err-invalid-price)
+        (asserts! (is-authorized-liquidator tx-sender) err-owner-only)
+        (asserts! (> debt u0) err-invalid-parameter)
+        (asserts! (< (* collateral-value u100)
+            (* debt (var-get liquidation-ratio)))
+            err-insufficient-collateral)
+        
+        ;; Additional check to prevent unauthorized vault deletion
+        (asserts! (not (is-eq vault-owner contract-owner)) err-owner-only)
+        
+        (let (
+            (collateral-to-transfer collateral)
+        )
+            (map-delete vaults vault-owner)
+            (try! (as-contract (stx-transfer? collateral-to-transfer (as-contract tx-sender) tx-sender)))
+            (ok true)
+        )
+    ))
+)
