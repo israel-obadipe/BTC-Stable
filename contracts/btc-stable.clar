@@ -266,3 +266,41 @@
         (ok true)
     )
 )
+
+;; Public Functions - Access Control
+
+(define-public (add-liquidator (liquidator principal))
+    (begin
+        (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+        (asserts! (not (is-authorized-liquidator liquidator)) err-invalid-parameter)
+        (map-set liquidators liquidator true)
+        (ok true)
+    )
+)
+
+(define-public (remove-liquidator (liquidator principal))
+    (begin
+        (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+        (asserts! (is-authorized-liquidator liquidator) err-invalid-parameter)
+        (map-delete liquidators liquidator)
+        (ok true)
+    )
+)
+
+(define-public (add-oracle (oracle principal))
+    (begin
+        (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+        (asserts! (not (is-authorized-oracle oracle)) err-invalid-parameter)
+        (map-set price-oracles oracle true)
+        (ok true)
+    )
+)
+
+(define-public (remove-oracle (oracle principal))
+    (begin
+        (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+        (asserts! (is-authorized-oracle oracle) err-invalid-parameter)
+        (map-delete price-oracles oracle)
+        (ok true)
+    )
+)
